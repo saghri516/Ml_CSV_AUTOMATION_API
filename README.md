@@ -126,6 +126,15 @@ model = quick_train('data/demo.csv')
 predictions = quick_predict('models/trained_model.pkl', 'data/test.csv')
 ```
 
+### Method 5: Train multiple models and save versioned artifacts
+You can train multiple model types and save them with incremental version numbers (for example, `model_random_forest_v1.pkl`, `model_logistic_regression_v2.pkl`) using the helper script:
+
+```powershell
+python -m src.train_multi --csv data/train.csv --models random_forest,logistic_regression,svm
+```
+
+This will train each specified model type and save models under the `models/` directory with `_vN` suffixes. A small metadata JSON file is also saved alongside each model containing training metrics and metadata.
+
 ## Complete Workflow Example
 
 ### Step-by-Step Execution:

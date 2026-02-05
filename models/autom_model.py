@@ -381,6 +381,65 @@ class AutomatedMLModel:
         except Exception as e:
             logger.error(f"Error saving model: {str(e)}")
             return False
+
+    def save_versioned(self, base_name: str = None, models_dir: str = None) -> str:
+        """
+        Save the model to the models directory with an incremental version suffix.
+
+        Args:
+            base_name: Base filename (without extension). Defaults to model type (e.g., 'model_random_forest').
+            models_dir: Directory to save models. Defaults to config.MODELS_DIR.
+
+        Returns:
+            Path to the saved model file as string, or empty string on failure.
+        """
+        try:
+            # Lazy import to avoid circular imports
+            import re
+            from pathlib import Path
+            import config
+            models_path = Path(models_dir) if models_dir else Path(config.MODELS_DIR)
+            models_path.mkdir(parents=True, exist_ok=True)
+
+            base = base_name or f"model_{self.config.get('model_type', 'model')}"
+            pattern = re.compile(rf"^{re.escape(base)}_v(\d+)\.pkl$")
+
+            # Find existing versions
+            max_v = 0
+            for f in models_path.iterdir():
+                if f.is_file():
+                    m = pattern.match(f.name)
+                    if m:
+                        try:
+                            v = int(m.group(1))
+                            if v > max_v:
+                                max_v = v
+                        except Exception:
+                            continue
+
+            next_v = max_v + 1
+            filename = f"{base}_v{next_v}.pkl"
+            save_path = str(models_path / filename)
+
+            saved = self.save_model(save_path)
+            if not saved:
+                return ""
+
+            # also save metadata file alongside the model
+            try:
+                meta_path = models_path / f"{base}_v{next_v}.json"
+                import json
+                with open(meta_path, 'w', encoding='utf-8') as mf:
+                    json.dump(self.model_metadata or {}, mf, indent=2)
+            except Exception:
+                # metadata save failure should not block model save
+                logger.warning("Failed to write metadata file")
+
+            logger.info(f"Model saved versioned: {save_path}")
+            return save_path
+        except Exception as e:
+            logger.error(f"Error saving versioned model: {str(e)}")
+            return ""
     
     def load_model(self, file_path: str) -> bool:
         """
