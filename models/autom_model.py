@@ -37,7 +37,9 @@ class AutomatedMLModel:
         Args:
             config: Dictionary with client requirements
         """
-        self.config = config or self.get_default_config()
+        # Merge provided config on top of defaults so missing keys don't cause errors
+        default_cfg = self.get_default_config()
+        self.config = {**default_cfg, **(config or {})}
         self.model = None
         self.scaler = None
         self.label_encoders = {}

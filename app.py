@@ -237,23 +237,133 @@ async def download_file(filename: str):
         logger.error(f"Download error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == "__main__":
-    # Create necessary directories
+def ensure_dirs():
+    # Create necessary directories used by the app/ui
     Path('data').mkdir(exist_ok=True)
     Path('models').mkdir(exist_ok=True)
     Path('output').mkdir(exist_ok=True)
     Path('logs').mkdir(exist_ok=True)
 
 
+def run_streamlit_app():
+    """Streamlit UI integration for interactive use.
+
+    Run with:
+        streamlit run app.py -- --streamlit
+    Or set environment variable STREAMLIT=1 and run python app.py
+    """
+    try:
+        import streamlit as st
+    except Exception as e:
+        logger.error(f"Streamlit not available: {e}")
+        raise
+
+    # Local imports for Streamlit UI functionality
+    from src.train_multi import DEFAULT_MODEL_TYPES, train_multiple
+    from src.predict_multi import predict_multiple
+    import json
+
+    ensure_dirs()
+
+    st.set_page_config(page_title="ML CSV Automation", layout="wide")
+    st.title("ML CSV Automation - Streamlit UI")
+
+    st.sidebar.header("Actions")
+    mode = st.sidebar.selectbox("Mode", ["Explore CSV", "Train Models", "Predict with Models", "Manage Models"])
+
+    if mode == "Explore CSV":
+        uploaded = st.file_uploader("Upload CSV", type="csv")
+        if uploaded:
+            df = pd.read_csv(uploaded)
+            st.subheader("Data Preview")
+            st.dataframe(df.head())
+            st.write("Shape:", df.shape)
+            st.write("Dtypes:", df.dtypes.to_dict())
+            st.write("Missing values:", df.isnull().sum().to_dict())
+
+    elif mode == "Train Models":
+        uploaded = st.file_uploader("Upload training CSV", type="csv")
+        models = st.multiselect("Model types to train", DEFAULT_MODEL_TYPES, DEFAULT_MODEL_TYPES)
+        test_size = st.slider("Test size", 0.05, 0.5, 0.2)
+        if st.button("Start training"):
+            if not uploaded:
+                st.error("Upload a CSV first")
+            else:
+                tmp = Path('data') / 'st_temp_train.csv'
+                with open(tmp, 'wb') as f:
+                    f.write(uploaded.getbuffer())
+                saved = train_multiple(str(tmp), models)
+                st.success(f"Saved {len(saved)} models")
+
+                # show metadata for each saved model
+                rows = []
+                for p in saved:
+                    meta_file = Path(p).with_suffix('.json')
+                    meta = {}
+                    if meta_file.exists():
+                        try:
+                            meta = json.loads(meta_file.read_text())
+                        except Exception:
+                            meta = {}
+                    rows.append({"model_path": p, "metadata": meta})
+                st.write(rows)
+
+    elif mode == "Predict with Models":
+        uploaded = st.file_uploader("Upload CSV to predict", type="csv")
+        models_dir = st.text_input("Models directory", 'models')
+        models_list = [str(p) for p in Path(models_dir).glob('*.pkl')] if Path(models_dir).exists() else []
+        selected = st.multiselect("Select models", models_list, models_list)
+        if st.button("Run prediction"):
+            if not selected or not uploaded:
+                st.error("Upload CSV and select at least one model")
+            else:
+                tmp = Path('data') / 'st_temp_pred.csv'
+                with open(tmp, 'wb') as f:
+                    f.write(uploaded.getbuffer())
+                out = predict_multiple(selected, str(tmp), out_dir='output')
+                df_out = pd.read_csv(out)
+                st.subheader("Combined Predictions")
+                st.dataframe(df_out.head())
+                csv_bytes = df_out.to_csv(index=False).encode()
+                st.download_button("Download predictions", csv_bytes, file_name=Path(out).name)
+
+    elif mode == "Manage Models":
+        st.subheader("Available models")
+        md = Path('models')
+        if md.exists():
+            dfm = []
+            for p in sorted(md.glob('*.pkl')):
+                meta_file = p.with_suffix('.json')
+                meta = {}
+                if meta_file.exists():
+                    try:
+                        meta = json.loads(meta_file.read_text())
+                    except Exception:
+                        meta = {}
+                dfm.append({"path": str(p), "metadata": meta})
+            st.dataframe(dfm)
+        else:
+            st.info("No models dir yet")
+
+
 if __name__ == "__main__":
-    """Run the server only when app.py is executed directly"""
-    logger.info("Starting FastAPI server...")
-    
-    # Run with uvicorn
-    uvicorn.run(
-        "app:app",
-        host="127.0.0.1",
-        port=5000,
-        reload=False,
-        log_level="info"
-    )
+    ensure_dirs()
+
+    import sys, os
+
+    # Decide whether to run Streamlit UI or FastAPI server
+    run_streamlit = False
+    if '--streamlit' in sys.argv or os.environ.get('STREAMLIT', '').lower() == '1' or 'streamlit' in sys.modules:
+        run_streamlit = True
+
+    if run_streamlit:
+        run_streamlit_app()
+    else:
+        logger.info("Starting FastAPI server...")
+        uvicorn.run(
+            "app:app",
+            host="127.0.0.1",
+            port=5000,
+            reload=False,
+            log_level="info"
+        )
