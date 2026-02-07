@@ -20,6 +20,15 @@ def main():
     train_csv = str(config.DATA_DIR / config.TRAIN_DATA_FILE)
     print(f"Starting training on {train_csv}")
 
+    # Skip retraining if training data is not present on the runner
+    if not (config.DATA_DIR / config.TRAIN_DATA_FILE).exists():
+        print(f"Training data not found at {config.DATA_DIR / config.TRAIN_DATA_FILE}. Skipping retraining.")
+        out = config.OUTPUT_DIR
+        out.mkdir(parents=True, exist_ok=True)
+        with open(out / 'retraining_skipped.txt', 'w') as f:
+            f.write(f"Training data missing: {config.DATA_DIR / config.TRAIN_DATA_FILE}\n")
+        return
+
     model = AutomatedMLModel()
     res = model.train(train_csv)
     if not res.get('success'):

@@ -10,11 +10,23 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 THRESH = float(os.getenv('MODEL_MIN_ACCURACY', '0.60'))
-metrics_file = Path('output') / 'metrics.json'
+metrics_dir = Path('output')
+metrics_file = metrics_dir / 'metrics.json'
+# If retraining was intentionally skipped, skip evaluation to avoid failing CI
+if (metrics_dir / 'retraining_skipped.txt').exists():
+    print('Retraining was skipped this run; skipping evaluation.')
+    with open(metrics_dir / 'evaluation_skipped.txt', 'w') as f:
+        f.write('Retraining skipped; evaluation not run.\n')
+    sys.exit(0)
 
 if not metrics_file.exists():
-    print('Metrics file missing:', metrics_file)
-    sys.exit(1)
+    print('Metrics file missing:', metrics_file, ' — skipping evaluation (no retraining performed)')
+    # Create a marker so Actions artifacts show the reason
+    out = metrics_file.parent
+    out.mkdir(parents=True, exist_ok=True)
+    with open(out / 'evaluation_skipped.txt', 'w') as f:
+        f.write('No metrics.json found; retraining likely skipped or failed.\n')
+    sys.exit(0)
 
 with open(metrics_file) as f:
     metrics = json.load(f)

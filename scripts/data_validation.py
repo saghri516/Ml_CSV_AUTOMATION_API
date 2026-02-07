@@ -12,6 +12,17 @@ from src.utils import load_csv, validate_data
 def main():
     train_path = config.DATA_DIR / config.TRAIN_DATA_FILE
     print(f"Running data validation on: {train_path}")
+
+    # Handle missing training data gracefully in CI
+    if not train_path.exists():
+        print(f"Training data not found at {train_path}. Skipping data validation.")
+        # create output folder and a marker for visibility
+        out = config.OUTPUT_DIR
+        out.mkdir(parents=True, exist_ok=True)
+        with open(out / 'data_validation_skipped.txt', 'w') as f:
+            f.write(f"Training data missing: {train_path}\n")
+        return
+
     df = load_csv(train_path)
     ok = validate_data(df)
     if not ok:
