@@ -399,7 +399,7 @@ docker-compose up -d
 ```
 
 ## CI/CD (GitHub Actions) 🔧
-We added a GitHub Actions workflow at `.github/workflows/ci-cd.yml` that runs linting (flake8), tests (pytest + coverage), and builds the Docker image as an artifact (only when tests pass). The workflow triggers on `push` and `pull_request` against `main` and uploads reports and the image tar as artifacts for review.
+We added a GitHub Actions workflow at `.github/workflows/ci-cd.yml` that runs linting (flake8), tests (pytest + coverage), and builds the Docker image as an artifact (only when tests pass). There is also a scheduled **Model Retraining** workflow at `.github/workflows/model_retraining.yml` that runs weekly (and on push to `main`) to validate data, train a versioned model, evaluate metrics, and upload model + metrics artifacts. The retraining workflow uses `models/autom_model.py` and enforces a `MODEL_MIN_ACCURACY` threshold (default `0.60`) to avoid promoting underperforming models.
 
 Run locally: `flake8 src/ tests/` and `pytest -q --maxfail=1 --junitxml=reports/junit.xml --cov=src`.
 

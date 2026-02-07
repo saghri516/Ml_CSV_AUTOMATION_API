@@ -1,0 +1,102 @@
+name: Model Retraining
+
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 6 * * 1' # Weekly: Monday 06:00 UTC
+
+concurrency:
+  group: model-retraining
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: '3.10'
+      MODEL_MIN_ACCURACY: '0.60' # Default threshold, override via repo variable if needed
+      PYTHONPATH: ${{ github.workspace }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Run tests (optional but recommended)
+        continue-on-error: true
+        run: |
+          mkdir -p reports
+          if [ -f pytest.ini ] || [ -d tests ] || [ -f tests.py ]; then
+            python -m pip install --upgrade pip
+            pip install pytest pytest-cov || true
+            pytest -q --maxfail=1 --junitxml=reports/junit.xml --cov=src --cov-report=xml:reports/coverage.xml || true
+          else
+            echo "No tests found, skipping pytest"
+          fi
+
+      - name: Run data validation (if available)
+        run: |
+          echo "Running data validation script"
+          if [ -f scripts/data_validation.py ]; then
+            python scripts/data_validation.py
+          elif [ -f src/data_validation.py ]; then
+            python src/data_validation.py
+          else
+            echo "No data validation script found; skipping validation"
+          fi
+
+      - name: Train model and save artifacts
+        id: train
+        run: |
+          echo "Starting retraining script"
+          python scripts/retrain.py
+
+      - name: Evaluate metrics and fail if below threshold
+        run: |
+          echo "Checking model metrics against threshold"
+          python scripts/evaluate.py
+
+      - name: Collect artifacts (model, metrics, reports, logs)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trained-models
+          path: |
+            models/*.pkl
+            models/*_v*.pkl
+            output/*.json
+            output/report.txt
+            output/trained_model_path.txt
+            logs/execution.log
+
+      - name: Log status
+        if: always()
+        run: |
+          echo "Model retraining finished with status: ${{ job.status }}"
+
+      - name: Post run summary
+        if: always()
+        run: |
+          echo "Retraining finished with status: ${{ job.status }}"

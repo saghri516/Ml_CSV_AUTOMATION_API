@@ -236,14 +236,15 @@ Solution: Make sure you're in the project root directory when running scripts
 ---
 
 ## CI/CD (GitHub Actions) 🔧
-We added a production-ready GitHub Actions workflow at `.github/workflows/ci-cd.yml`.
+We added a production-ready GitHub Actions workflow at `.github/workflows/ci-cd.yml` and an automated model retraining workflow at `.github/workflows/model_retraining.yml`.
 
 **Summary**
-- **Triggers:** `push` and `pull_request` on the `main` branch
-- **Jobs:** `lint` (flake8), `test` (pytest with junit & coverage), and `build` (Docker Buildx producing `image.tar`)
+- **Triggers:** `push` and `pull_request` on the `main` branch (CI) and weekly schedule + push-to-main for model retraining
+- **Jobs:** `lint` (flake8), `test` (pytest with junit & coverage), `build` (Docker Buildx -> `image.tar`), and `retrain` (model retraining)
+- **Model retraining details:** The `model_retraining.yml` job runs on `ubuntu-latest`, sets up Python 3.10, installs `requirements.txt`, runs data validation (if available), trains a model using `models/autom_model.py` (safe versioned saving), evaluates metrics, and fails if the primary metric is below the configured threshold (`MODEL_MIN_ACCURACY`, default `0.60`). It uploads trained model files and `output/metrics.json` as artifacts.
 - **Build conditions:** `build` runs only if `test` succeeds
 - **Caching:** pip cache via `actions/cache` keyed on `requirements.txt`
-- **Artifacts:** `flake8-report`, `test-reports` (`junit.xml`, `coverage.xml`), and `docker-image-<sha>.tar`
+- **Artifacts:** `flake8-report`, `test-reports` (`junit.xml`, `coverage.xml`), `docker-image-<sha>.tar`, and (for retraining) `trained-models` (all `models/*.pkl`), `metrics.json`, `report.txt`
 
 **Run locally**
 - Lint: `pip install flake8 && flake8 src/ tests/ --max-line-length=88`
@@ -253,7 +254,8 @@ We added a production-ready GitHub Actions workflow at `.github/workflows/ci-cd.
 **Add a status badge to your README**
 ```md
 ![CI](https://github.com/<OWNER>/<REPO>/actions/workflows/ci-cd.yml/badge.svg)
+![Model Retraining](https://github.com/<OWNER>/<REPO>/actions/workflows/model_retraining.yml/badge.svg)
 ```
 Replace `<OWNER>/<REPO>` with your repository path.
 
-> Note: The workflow builds and uploads an image artifact and does not push images to any registry by default (no cloud deployment).
+> Note: The workflows build and upload artifacts but do not push images or models to external registries by default (no cloud deployment). Configure secure keys and guarded jobs to push artifacts to a registry or model store when desired.

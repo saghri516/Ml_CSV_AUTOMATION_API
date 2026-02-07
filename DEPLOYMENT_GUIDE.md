@@ -353,6 +353,7 @@ A production-ready workflow is provided at `.github/workflows/ci-cd.yml` (no clo
 - **Jobs:** `lint` (flake8), `test` (pytest with junit & coverage), and `build` (Docker Buildx producing `image.tar`). The `build` job runs only after the `test` job succeeds.
 - **Caching:** Uses `actions/cache` to cache pip packages keyed on `requirements.txt`.
 - **Artifacts:** Uploaded artifacts include `flake8-report`, `test-reports` (`junit.xml` and `coverage.xml`), and the built `image.tar`.
+- **Model Retraining:** A separate workflow `.github/workflows/model_retraining.yml` runs weekly and on push to `main` to retrain models using `models/autom_model.py`. It produces `trained-models` (saved `models/*.pkl`), `output/metrics.json`, and `output/report.txt` artifacts. The job enforces a configurable minimum metric (`MODEL_MIN_ACCURACY`, default `0.60`) and fails if the model doesn't meet the threshold.
 - **Best practices:** concurrency cancel-in-progress, minimal permissions, separate jobs, and building with Buildx (no Docker-in-Docker).
 
 **Run checks locally:**
