@@ -61,7 +61,8 @@ class AutomatedMLModel:
             'target_column': None,  # Auto-detect if None
             'excluded_columns': [],
             'hyperparameters': {
-                'random_forest': {'n_estimators': 100, 'max_depth': 10, 'random_state': 42},
+                # stronger default RF to reduce underfitting in CI retraining
+                'random_forest': {'n_estimators': 300, 'max_depth': None, 'random_state': 42},
                 'gradient_boosting': {'n_estimators': 100, 'learning_rate': 0.1, 'random_state': 42},
                 'logistic_regression': {'max_iter': 1000, 'random_state': 42},
                 'svm': {'kernel': 'rbf', 'C': 1.0, 'random_state': 42}
